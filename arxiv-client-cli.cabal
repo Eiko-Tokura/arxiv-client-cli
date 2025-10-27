@@ -20,20 +20,13 @@ executable arxiv-client-cli
     import:           warnings
     main-is:          Main.hs
     hs-source-dirs:   app
-    ghc-options:     -threaded -rtsopts -with-rtsopts=-N
+    ghc-options:      -threaded -rtsopts -with-rtsopts=-N
     build-depends:
         base
       , arxiv-client
       , text
-      , bytestring
       , directory
       , time
-      , req
-      , xml-conduit
-      , conduit
-      , containers
-      , modern-uri
-      , pretty-simple
       , optparse-applicative
       , optparse-generic
       , megaparsec
