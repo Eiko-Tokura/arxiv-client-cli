@@ -38,6 +38,9 @@ queryHelp =
       any [<string>, ...]  -- any of the strings (ors)
       all [<string>, ...]  -- all of the strings (ands)
 
+  * You can write a single string "value" without specifying field and match,
+    which is equivalent to: anywhere has "value"
+
   * Logical operators:
     &&      -- and (note that these operators are right associative, use brackets for clarity)
     ||      -- or  (note that these operators are right associative, use brackets for clarity)
