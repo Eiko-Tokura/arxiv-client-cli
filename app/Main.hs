@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DeriveAnyClass, OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedStrings, MultilineStrings, DeriveAnyClass, OverloadedRecordDot, DataKinds #-}
 module Main where
 
 import Arxiv.Client
@@ -8,12 +8,12 @@ import Arxiv.Filters
 import Arxiv.Query
 import Arxiv.Query.Algebraic
 import Arxiv.Query.Parser
-import Control.Monad (when, forM_, unless)
+import Control.Monad (when, forM_, unless, guard)
 import Data.Aeson
 import qualified Data.Aeson.KeyMap as K
 import Data.IORef
 import Data.Maybe
-import Data.Time (UTCTime(..), secondsToDiffTime, fromGregorian, Day)
+import Data.Time (UTCTime(..), Day)
 import Options.Generic
 import System.Directory
 import System.FilePath ((</>))
@@ -24,32 +24,66 @@ import qualified Data.ByteString.Lazy.Char8 as B
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
-data ArxivCliArgs = ArxivCliArgs
-  { query       :: T.Text
-  , downloadPdf :: Bool
-  , downloadSrc :: Bool
-  , ungzip      :: Bool -- automatically ungzip source files (by running "tar -xzf")
-  , concise     :: Bool -- concise output
-  , detail      :: Bool -- detailed output
-  , abstract    :: Bool -- show abstract
-  , json        :: Bool -- output in JSON format
-  , downloadDir :: Maybe FilePath
-  , after       :: Maybe Day
-  , before      :: Maybe Day
-  , maxResult   :: Maybe Int
-  , page        :: Maybe Int
-  } deriving (Show, Generic, ParseRecord)
+queryHelp :: [Char]
+queryHelp =
+  """
+  --query parameter is mandatory.
+  Query string is constructed by using
 
-fromDay :: Integer -> Int -> Int -> UTCTime
-fromDay y m d = UTCTime (fromGregorian y m d) (secondsToDiffTime 0)
+  * <field> <match> <value>
+    <field> := title | author | abstract | category | anywhere
+    (<match>, <value>) :=
+      is <string>          -- exact match
+      has <string>         -- substring match
+      any [<string>, ...]  -- any of the strings (ors)
+      all [<string>, ...]  -- all of the strings (ands)
+
+  * Logical operators:
+    &&      -- and (note that these operators are right associative, use brackets for clarity)
+    ||      -- or  (note that these operators are right associative, use brackets for clarity)
+    ands [<queryTerm>, ...]  -- and multiple terms
+    ors  [<queryTerm>, ...]  -- or  multiple terms
+    not <queryTerm>          -- negate term
+
+  Examples:
+    --query 'title has "quantum" && author is "Albert Einstein"'
+    --query 'author any ["john doe", "jane smith"]'
+    --query 'ands [title is "coleman", author has "doe"]'
+    --query 'ors [category is "math.NT", category is "math.AG"]'
+  """
+
+data ArxivCliArgs w = ArxivCliArgs
+  { query       :: w ::: Maybe T.Text   <#> "q" <?> "Search query string"
+  , helpQuery   :: w ::: Bool           <#> "H" <?> "Display help for constructing query strings"
+  , downloadPdf :: w ::: Bool           <#> "p" <?> "Download PDF files for each entry"
+  , downloadSrc :: w ::: Bool           <#> "s" <?> "Download source .tar.gz files for each entry"
+  , ungzip      :: w ::: Bool           <#> "u" <?> "Automatically ungzip source files (by running \"tar -xzf\")"
+  , concise     :: w ::: Bool           <#> "c" <?> "Concise output (only titles)"
+  , detail      :: w ::: Bool           <#> "v" <?> "Detailed output"
+  , abstract    :: w ::: Bool           <#> "a" <?> "Include abstracts in the output"
+  , json        :: w ::: Bool           <#> "j" <?> "Output results in JSON format, turn off human-readable output"
+  , downloadDir :: w ::: Maybe FilePath <#> "d" <?> "Directory path to save downloaded files" <!> "./"
+  , after       :: w ::: Maybe Day              <?> "Only include papers published after this date (YYYY-MM-DD)"
+  , before      :: w ::: Maybe Day              <?> "Only include papers published before this date (YYYY-MM-DD)"
+  , maxResult   :: w ::: Maybe Int      <#> "m" <?> "Maximum results per page"                <!> "25"
+  , page        :: w ::: Maybe Int      <#> "n" <?> "Page number to retrieve (starting from 0)"
+  } deriving (Generic)
+
+instance ParseRecord (ArxivCliArgs Wrapped)
 
 tshow :: Show a => a -> T.Text
 tshow = T.pack . show
 
 main :: IO ()
 main = do
-  args :: ArxivCliArgs <- getRecord "Arxiv Client CLI"
+  args <- unwrap <$> getRecord "Arxiv Client CLI"
+  let mQuery = do
+        guard (not args.helpQuery)
+        args.query
+  maybe (putStrLn queryHelp) (arxivCli args) mQuery
 
+arxivCli :: ArxivCliArgs Unwrapped -> Text -> IO ()
+arxivCli args query = do
   let nResultPage = fromMaybe 25   args.maxResult
       directory   = fromMaybe "./" args.downloadDir
       entryFilter = foldr (.) id
@@ -57,7 +91,7 @@ main = do
         , maybe id (publishedBefore . (`UTCTime` 0)) args.before
         ]
 
-  arxivQuery <- case parseQueryTerm (query args) of
+  arxivQuery <- case parseQueryTerm query of
     Left err -> error ("Failed to parse query: " ++ errorBundlePretty err)
     Right qt -> pure
       $ emptyQuery
