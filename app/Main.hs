@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, MultilineStrings, DeriveAnyClass, OverloadedRecordDot, DataKinds #-}
+{-# LANGUAGE OverloadedStrings, MultilineStrings, OverloadedRecordDot, DataKinds #-}
 module Main where
 
 import Arxiv.Client
