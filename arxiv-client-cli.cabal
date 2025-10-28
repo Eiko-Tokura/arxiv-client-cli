@@ -23,7 +23,9 @@ executable arxiv-client-cli
     ghc-options:      -threaded -rtsopts -with-rtsopts=-N
     build-depends:
         base
+      , aeson
       , arxiv-client
+      , bytestring
       , text
       , directory
       , time
