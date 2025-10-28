@@ -8,7 +8,7 @@ license-file:       LICENSE
 author:             Eiko
 maintainer:         eikochanowo@outlook.com
 -- copyright:
-category:           Network
+category:           Network, CLI
 build-type:         Simple
 extra-doc-files: CHANGELOG.md
                , README.md
